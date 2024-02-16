@@ -1,0 +1,242 @@
+unit FSD.MainMenu.Wizard;
+
+interface
+
+uses
+  ToolsAPI,
+  System.SysUtils,
+  System.Classes,
+  FSD.Utils,
+  FSD.NewUnitMuka,
+  Winapi.ShellAPI,
+  FSD.HistoryProjects.Forms,
+  FSD.NewUnit.ToolsAPI.Creator,
+  FSD.DockForm.Sample,
+  System.Generics.Collections,
+  Vcl.Graphics,
+  Vcl.Menus,
+  Vcl.Dialogs;
+
+type TFSDMainMenuWizard = class(TNotifierObject, IOTAWizard)
+
+  private
+    FImages : TDictionary<string, Integer>;
+    FImageSQLite: Integer;
+
+    procedure createMenu;
+
+    procedure OnClickHelloWorld(Sender: TObject);
+    procedure OnClickMenuSQLite(Sender: TObject);
+    procedure OnClickMenuSQLDeveloper(Sender: TObject);
+    procedure OnClickMenuMySQL(Sender: TObject);
+    procedure OnClickMenuPostgres(Sender: TObject);
+    procedure OnClickMenuHistoryProjects(Sender: TObject);
+    procedure OnClickMenuUnitToolsAPI(Sender: TObject);
+    procedure OnClickEditUnit(Sender: TObject);
+    procedure OnClickNewUnitMuka(Sender: TObject);
+
+
+    function createSubMenu(AParent: TMenuItem;
+                           ACaption: string;
+                           AName: string;
+                           AOnClick: TNotifyEvent;
+                           ResourceName: String = ''): TMenuItem;
+
+    procedure AddImageToImageList(ResourceName: String);
+  protected
+    function GetIDString: string;
+    function GetName: string;
+    function GetState: TWizardState;
+
+    { Launch the AddIn }
+    procedure Execute;
+
+  public
+    constructor create;
+    destructor Destroy; override;
+end;
+
+procedure RegisterMenuWizard;
+
+implementation
+
+procedure RegisterMenuWizard;
+begin
+  RegisterPackageWizard(TFSDMainMenuWizard.create);
+end;
+
+{ TFSDMainMenuWizard }
+
+procedure TFSDMainMenuWizard.AddImageToImageList(ResourceName: String);
+var
+  bitmap: TBitmap;
+  index: Integer;
+begin
+  bitmap := TBitmap.Create;
+  try
+    bitmap.LoadFromResourceName(HInstance, ResourceName);
+
+    index := (BorlandIDEServices AS INTAServices)
+                      .AddMasked(bitmap, bitmap.TransparentColor, 'img_' + ResourceName);
+
+    FImages.Add(ResourceName, index);
+  finally
+    bitmap.Free;
+  end;
+end;
+
+constructor TFSDMainMenuWizard.create;
+begin
+  FImages := TDictionary<String, Integer>.Create;
+  AddImageToImageList('sqlite');
+  AddImageToImageList('postgres');
+  AddImageToImageList('sqldeveloper');
+  AddImageToImageList('mysql');
+
+  createMenu;
+end;
+
+procedure TFSDMainMenuWizard.createMenu;
+var
+  menu: TMainMenu;
+  menuName: string;
+  itemFormacao: TMenuItem;
+  itemUtilitarios: TMenuItem;
+begin
+  menu := (BorlandIDEServices as INTAServices).MainMenu;
+  menuName := 'imFormacaoSeniorDeveloper';
+
+  if menu.FindComponent(menuName) <> nil then
+    menu.FindComponent(menuName).Free;
+
+  itemFormacao := TMenuItem.Create(menu);
+  itemFormacao.Name := menuName;
+  itemFormacao.Caption := 'Formação Senior Developer';
+  menu.Items.Add(itemFormacao);
+
+  createSubMenu(itemFormacao, 'Hello World', 'imHelloWorld', OnClickHelloWorld);
+  createSubMenu(itemFormacao, 'New Unit ToolsAPI', 'imToolsAPI', OnClickMenuUnitToolsAPI);
+  createSubMenu(itemFormacao, 'Histórico Projetos', 'imHistoricoProjetos', OnClickMenuHistoryProjects);
+  createSubMenu(itemFormacao, 'EditUnit', 'imEditUnit', OnClickEditUnit);
+
+  itemUtilitarios := createSubMenu(itemFormacao, 'Utilitários', 'imUtilitarios', nil);
+
+  createSubMenu(itemUtilitarios, 'SQLite', 'imSQLite', OnClickMenuSQLite, 'sqlite');
+  createSubMenu(itemUtilitarios, 'MySQL', 'imMySQL', OnClickMenuMySQL, 'mysql');
+  createSubMenu(itemUtilitarios, 'SQL Developer', 'imSQLDeveloper', OnClickMenuSQLDeveloper, 'sqldeveloper');
+  createSubMenu(itemUtilitarios, 'Postgres', 'imPostgres', OnClickMenuPostgres, 'postgres');
+end;
+
+function TFSDMainMenuWizard.createSubMenu(AParent: TMenuItem;
+                           ACaption: string;
+                           AName: string;
+                           AOnClick: TNotifyEvent;
+                           ResourceName: String = ''): TMenuItem;
+var
+  subMenu: TMenuItem;
+begin
+  subMenu := TMenuItem.Create(AParent);
+  subMenu.Caption := ACaption;
+  subMenu.Name := AName;
+  subMenu.OnClick := AOnClick;
+
+  if ResourceName <> '' then
+    subMenu.ImageIndex := FImages.Items[ResourceName];
+
+  AParent.Add(subMenu);
+  result := subMenu;
+end;
+
+destructor TFSDMainMenuWizard.Destroy;
+begin
+  FImages.Free;
+  inherited;
+end;
+
+procedure TFSDMainMenuWizard.Execute;
+begin
+
+end;
+
+function TFSDMainMenuWizard.GetIDString: string;
+begin
+  Result := Self.ClassName;
+end;
+
+function TFSDMainMenuWizard.GetName: string;
+begin
+  result := Self.ClassName;
+end;
+
+function TFSDMainMenuWizard.GetState: TWizardState;
+begin
+  result := [wsEnabled];
+end;
+
+procedure TFSDMainMenuWizard.OnClickEditUnit(Sender: TObject);
+var
+  activeUnit: TStringList;
+  editView: IOTAEditView;
+  i: Integer;
+begin
+  editView := (BorlandIDEServices as IOTAEditorServices).TopView;
+  activeUnit := EditorAsStringList;
+
+  for i := 0 to Pred(activeUnit.Count) do
+  begin
+    if activeUnit[i].StartsWith('uses') then
+    begin
+      editView.Buffer.EditPosition.GotoLine(i + 2);
+      editView.Buffer.EditPosition.Tab(1);
+      editView.Buffer.EditPosition.InsertText('///' + #13);
+    end;
+  end;
+end;
+
+procedure TFSDMainMenuWizard.OnClickHelloWorld(Sender: TObject);
+begin
+  ShowDockFormSample;
+end;
+
+procedure TFSDMainMenuWizard.OnClickMenuHistoryProjects(Sender: TObject);
+begin
+  ShowHistoryProjects;
+end;
+
+procedure TFSDMainMenuWizard.OnClickMenuMySQL(Sender: TObject);
+begin
+  ShellExecute(HInstance, 'open', 'C:\Program Files\MySQL\MySQL Workbench 8.0 CE\MySQLWorkbench.exe',
+    '', '', 0);
+end;
+
+procedure TFSDMainMenuWizard.OnClickMenuPostgres(Sender: TObject);
+begin
+  ShellExecute(HInstance, 'open', 'http://127.0.0.1:55944/browser/',
+    '', '', 0);
+end;
+
+procedure TFSDMainMenuWizard.OnClickMenuSQLDeveloper(Sender: TObject);
+begin
+  ShellExecute(HInstance, 'open', 'D:\Arquivos e Programas\sqldeveloper\sqldeveloper.exe',
+    '', '', 0);
+end;
+
+procedure TFSDMainMenuWizard.OnClickMenuSQLite(Sender: TObject);
+begin
+  ShellExecute(HInstance, 'open', 'C:\Program Files\SQLite Expert\Personal 5\SQLiteExpertPers64.exe',
+    '', '', 0);
+end;
+
+procedure TFSDMainMenuWizard.OnClickMenuUnitToolsAPI(Sender: TObject);
+begin
+  (BorlandIDEServices as IOTAModuleServices)
+    .CreateModule(TFSDNewUnitToolsAPI.NEw);
+end;
+
+procedure TFSDMainMenuWizard.OnClickNewUnitMuka(Sender: TObject);
+begin
+  (BorlandIDEServices as IOTAModuleServices)
+    .CreateModule(TFSDNewUnitMuka.New);
+end;
+
+end.

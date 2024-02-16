@@ -1,0 +1,7 @@
+unit Model.Services.CEP.BaseClass;
+
+interface
+
+implementation
+
+end.

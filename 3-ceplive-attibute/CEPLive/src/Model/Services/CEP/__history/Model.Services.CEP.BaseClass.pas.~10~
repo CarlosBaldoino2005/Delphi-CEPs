@@ -1,0 +1,150 @@
+unit Model.Services.CEP.BaseClass;
+
+interface
+
+uses
+  Model.Services.Interfaces,
+  System.SysUtils,
+  System.Rtti;
+
+type
+  TUriCEPAttribute = class(TCustomAttribute)
+  private
+    FName: string;
+    FUri: string;
+  public
+    constructor Create(aName, aUri: string);
+    property Name: string read FName write FName;
+    property Uri: string read FUri write FUri;
+  end;
+
+  TModelServicesCEPBase = class(TInterfacedObject, iModelServicesCEP)
+    private
+      FParent : iModelServicesCEP;
+      FReturn : string;
+      FCode : string;
+      FDisplay : TProc<string>;
+      FName: string;
+      FUri: string;
+      procedure _Return(aValue : string);
+      procedure CarregarAtributos;
+    protected
+      function GetCode: string;
+      function GetUri: string; virtual;
+      function GetName: string; virtual;
+    public
+      constructor Create(aParent : iModelServicesCEP);
+      class function New(aParent : iModelServicesCEP): iModelServicesCEP;
+      function Code (aValue : string ): iModelServicesCEP;
+      function Display(aValue : TProc<string>): iModelServicesCEP; overload;
+      function Display: TProc<string>; overload;
+      function Execute: iModelServicesCEP;
+      function Return: string;
+  end;
+
+implementation
+
+uses
+  Model.Connections.RestRequest;
+
+{ TModelServicesCEPBase }
+
+procedure TModelServicesCEPBase.CarregarAtributos;
+var
+  lContext: TRttiContext;
+  lType: TRttiType;
+  lAttribute: TCustomAttribute;
+begin
+  lContext := TRttiContext.Create;
+  lType := lContext.GetType(Self.ClassType);
+
+  for lAttribute in lType.GetAttributes do
+  begin
+    if lAttribute is TUriCEPAttribute then
+    begin
+      FName := TModelServicesCEPAttribute(lAttribute).Name;
+      FUri  := TModelServicesCEPAttribute(lAttribute).Uri;
+    end;
+  end;
+end;
+
+function TModelServicesCEPBase.Code(aValue: string): iModelServicesCEP;
+begin
+  Result := Self;
+  FCode := aValue;
+end;
+
+constructor TModelServicesCEPBase.Create(aParent : iModelServicesCEP);
+begin
+  CarregarAtributos;
+  FParent := aParent;
+end;
+
+function TModelServicesCEPBase.Display: TProc<string>;
+begin
+  Result := FDisplay;
+end;
+
+function TModelServicesCEPBase.Display(
+  aValue: TProc<string>): iModelServicesCEP;
+begin
+  Result := Self;
+  FDisplay := aValue;
+end;
+
+function TModelServicesCEPBase.Execute: iModelServicesCEP;
+begin
+  Result := Self;
+  try
+    _Return(GetName +' - ' +
+    TModelConnectionsRestRequest
+      .New
+        .Get(GetUri)
+        .Return);
+  except
+    if Assigned(FParent) then
+        _Return(FParent.Code(FCode).Execute.Return);
+  end;
+end;
+
+function TModelServicesCEPBase.GetCode: string;
+begin
+  Result := FCode;
+end;
+
+function TModelServicesCEPBase.GetName: string;
+begin
+  Result := FName;
+end;
+
+function TModelServicesCEPBase.GetUri: string;
+begin
+  Result := StringReplace(FUri,'<#Code>',FCode,[]);
+end;
+
+class function TModelServicesCEPBase.New(aParent : iModelServicesCEP) : iModelServicesCEP;
+begin
+  Result := Self.Create(aParent);
+end;
+
+function TModelServicesCEPBase.Return: string;
+begin
+   Result := FReturn;
+end;
+
+procedure TModelServicesCEPBase._Return(aValue: string);
+begin
+  FReturn := aValue;
+  if Assigned(FDisplay) then
+    FDisplay(FReturn);
+end;
+
+{ TModelServicesCEPAttribute }
+
+constructor TUriCEPAttribute.Create(aName, aUri: string);
+begin
+  FName := aName;
+  FUri  := aUri;
+end;
+
+end.

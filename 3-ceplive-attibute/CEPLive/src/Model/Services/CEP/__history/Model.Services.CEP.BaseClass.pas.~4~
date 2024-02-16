@@ -1,0 +1,93 @@
+unit Model.Services.CEP.BaseClass;
+
+interface
+
+uses
+  Model.Services.Interfaces,
+  System.SysUtils;
+
+type
+  TModelServicesCEPBase = class(TInterfacedObject, iModelServicesCEP)
+    private
+      FParent : iModelServicesCEP;
+      FReturn : string;
+      FCode : string;
+      FDisplay : TProc<string>;
+      procedure _Return(aValue : string);
+    protected
+      function GetCode: string;
+      function GetUri: string; virtual; abstract;
+      function GetName: string; virtual; abstract;
+    public
+      constructor Create(aParent : iModelServicesCEP);
+      class function New(aParent : iModelServicesCEP): iModelServicesCEP;
+      function Code (aValue : string ): iModelServicesCEP;
+      function Display(aValue : TProc<string>): iModelServicesCEP; overload;
+      function Display: TProc<string>; overload;
+      function Execute: iModelServicesCEP;
+      function Return: string;
+  end;
+
+implementation
+
+uses
+  Model.Connections.RestRequest;
+
+{ TModelServicesCEPBase }
+
+function TModelServicesCEPBase.Code(aValue: string): iModelServicesCEP;
+begin
+  Result := Self;
+  FCode := aValue;
+end;
+
+constructor TModelServicesCEPBase.Create(aParent : iModelServicesCEP);
+begin
+  FParent := aParent;
+end;
+
+function TModelServicesCEPBase.Display: TProc<string>;
+begin
+  Result := FDisplay;
+end;
+
+function TModelServicesCEPBase.Display(
+  aValue: TProc<string>): iModelServicesCEP;
+begin
+  Result := Self;
+  FDisplay := aValue;
+end;
+
+function TModelServicesCEPBase.Execute: iModelServicesCEP;
+begin
+  Result := Self;
+  try
+    _Return(GetName +' - ' +
+    TModelConnectionsRestRequest
+      .New
+        .Get(GetUri)
+        .Return);
+  except
+    if Assigned(FParent) then
+        _Return(FParent.Code(FCode).Execute.Return);
+  end;
+end;
+
+class function TModelServicesCEPBase.New(aParent : iModelServicesCEP) : iModelServicesCEP;
+begin
+  Result := Self.Create(aParent);
+end;
+
+function TModelServicesCEPBase.Return: string;
+begin
+   Result := FReturn;
+end;
+
+procedure TModelServicesCEPBase._Return(aValue: string);
+begin
+  FReturn := aValue;
+  if Assigned(FDisplay) then
+    FDisplay(FReturn);
+end;
+
+end.
